@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FileText, PlusCircle, Settings, RefreshCw, AlertCircle, Edit2, Trash2, X, Check, Search, Filter } from 'lucide-react';
 import axios from 'axios';
 
-const API = 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 const MONTH_NAMES = [
     '', 'كانون الثاني', 'شباط', 'آذار', 'نيسان', 'أيار', 'حزيران',

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { FileText, Download, Printer, Filter, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
+const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+
 const Reports = () => {
     const [reportData, setReportData] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -10,7 +12,7 @@ const Reports = () => {
     const fetchReportData = async () => {
         setIsLoading(true);
         try {
-            const response = await axios.get('http://localhost:8000/api/reports/invoices');
+            const response = await axios.get(`${API}/api/reports/invoices`);
             setReportData(response.data);
         } catch (error) {
             console.error("Error fetching report data:", error);
