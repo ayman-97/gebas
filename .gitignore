@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.vite/
+
+# Python
+__pycache__/
+*.pyc
+venv/
+env/
+gebas_fallback.db
+.pytest_cache/
+
+# OS specific
+.DS_Store
+Thumbs.db
