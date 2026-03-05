@@ -4,13 +4,15 @@ from jose import JWTError, jwt
 import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
 import os
+import secrets
 import models
 from database import get_db
 
 # JWT settings
-SECRET_KEY = os.getenv("SECRET_KEY", "b3c9f2b1d4e7a8g0h5j2k9l1m4n7p0q3r8t2v5w9x1z4a7d0e3f8h1i") # Fallback for dev
+# Use environment variable, otherwise generate a random secure key.
+# Note: If a random key is used, user sessions will expire whenever the server restarts.
+SECRET_KEY = os.getenv("SECRET_KEY", secrets.token_urlsafe(32))
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # 7 days validity for convenience
 
