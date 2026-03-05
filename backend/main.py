@@ -1,29 +1,33 @@
 import os
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
+import auth
 
 # Import models
 import models
 
-# Database Setup
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/gebas")
-
-try:
-    engine = create_engine(DATABASE_URL)
-    with engine.connect() as conn:
-        pass
-except Exception as e:
-    print(f"Warning: Could not connect to Postgres, falling back to SQLite: {e}")
-    DATABASE_URL = "sqlite:///./gebas_fallback.db"
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+from database import engine, SessionLocal, get_db
 models.Base.metadata.create_all(bind=engine)
+
+# Create default admin user if it doesn't exist
+db = SessionLocal()
+try:
+    if db.query(models.User).filter(models.User.username == "admin").count() == 0:
+        admin_user = models.User(
+            username="admin",
+            hashed_password=auth.get_password_hash("admin123"),
+            role="admin"
+        )
+        db.add(admin_user)
+        db.commit()
+finally:
+    db.close()
 
 
 app = FastAPI(title="GEBAS API - نظام جباية المولدات")
@@ -37,13 +41,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# Keep original get_db import from database.py
+# Dependency handled by database.py
 
 # --- Health Check ---
 @app.get("/")
@@ -82,36 +81,134 @@ class SubscriberResponse(SubscriberBase):
     class Config:
         from_attributes = True
 
+# --- Auth & Users API ---
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    role: str
+    is_active: int
+    
+    class Config:
+        from_attributes = True
+
+@app.post("/api/token", response_model=Token)
+async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    user = db.query(models.User).filter(models.User.username == form_data.username).first()
+    if not user or not auth.verify_password(form_data.password, user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="اسم المستخدم أو كلمة المرور غير صحيحة",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token = auth.create_access_token(data={"sub": user.username})
+    auth.log_audit(db, user.id, "LOGIN", "users", user.id, f"User {user.username} logged in")
+    db.commit()
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/users/me", response_model=UserResponse)
+async def read_users_me(current_user: models.User = Depends(auth.get_current_active_user)):
+    return current_user
+
+@app.get("/api/users", response_model=List[UserResponse])
+def read_users(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
+    return db.query(models.User).all()
+
+@app.post("/api/users", response_model=UserResponse)
+def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
+    db_user = db.query(models.User).filter(models.User.username == user.username).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="اسم المستخدم موجود مسبقاً")
+    new_user = models.User(
+        username=user.username,
+        hashed_password=auth.get_password_hash(user.password),
+        role=user.role
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    auth.log_audit(db, current_user.id, "CREATE", "users", new_user.id, f"Created user {new_user.username} with role {new_user.role}")
+    db.commit()
+    return new_user
+
+@app.delete("/api/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="لا يمكنك حذف حسابك الخاص")
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+    username = user.username
+    db.delete(user)
+    db.commit()
+    auth.log_audit(db, current_user.id, "DELETE", "users", user_id, f"Deleted user {username}")
+    db.commit()
+    return {"status": "success"}
+
+@app.get("/api/audit-logs")
+def get_audit_logs(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
+    logs = db.query(models.AuditLog).order_by(models.AuditLog.id.desc()).limit(200).all()
+    result = []
+    for log in logs:
+        result.append({
+            "id": log.id,
+            "user_id": log.user_id,
+            "username": log.user.username if log.user else "System",
+            "action": log.action,
+            "table_name": log.table_name,
+            "record_id": log.record_id,
+            "details": log.details,
+            "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S") if log.timestamp else ""
+        })
+    return result
+
 # --- Stations API ---
 @app.get("/api/stations", response_model=List[StationResponse])
-def read_stations(db: Session = Depends(get_db)):
+def read_stations(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     return db.query(models.Station).all()
 
 @app.post("/api/stations", response_model=StationResponse)
-def create_station(station: StationCreate, db: Session = Depends(get_db)):
+def create_station(station: StationCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_station = models.Station(**station.model_dump())
     db.add(db_station)
     db.commit()
     db.refresh(db_station)
+    auth.log_audit(db, current_user.id, "CREATE", "stations", db_station.station_id, f"Created station {station.station_name}")
+    db.commit()
     return db_station
 
 @app.put("/api/stations/{station_id}", response_model=StationResponse)
-def update_station(station_id: int, station: StationCreate, db: Session = Depends(get_db)):
+def update_station(station_id: int, station: StationCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_station = db.query(models.Station).filter(models.Station.station_id == station_id).first()
     if not db_station:
         raise HTTPException(status_code=404, detail="المحطة غير موجودة")
+    old_name = db_station.station_name
     db_station.station_name = station.station_name
     db.commit()
     db.refresh(db_station)
+    auth.log_audit(db, current_user.id, "UPDATE", "stations", station_id, f"Renamed station from {old_name} to {station.station_name}")
+    db.commit()
     return db_station
 
 @app.delete("/api/stations/{station_id}")
-def delete_station(station_id: int, db: Session = Depends(get_db)):
+def delete_station(station_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_station = db.query(models.Station).filter(models.Station.station_id == station_id).first()
     if not db_station:
         raise HTTPException(status_code=404, detail="المحطة غير موجودة")
+    station_name = db_station.station_name
     try:
         db.delete(db_station)
+        db.commit()
+        auth.log_audit(db, current_user.id, "DELETE", "stations", station_id, f"Deleted station {station_name}")
         db.commit()
         return {"status": "success", "message": "تم حذف المحطة بنجاح"}
     except Exception:
@@ -120,7 +217,7 @@ def delete_station(station_id: int, db: Session = Depends(get_db)):
 
 # --- Subscribers API ---
 @app.get("/api/subscribers")
-def read_subscribers(station_id: Optional[int] = None, skip: int = 0, limit: int = 500, db: Session = Depends(get_db)):
+def read_subscribers(station_id: Optional[int] = None, skip: int = 0, limit: int = 500, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     query = db.query(models.Subscriber)
     if station_id:
         query = query.filter(models.Subscriber.station_id == station_id)
@@ -139,11 +236,13 @@ def read_subscribers(station_id: Optional[int] = None, skip: int = 0, limit: int
     return result
 
 @app.post("/api/subscribers")
-def create_subscriber(subscriber: SubscriberCreate, db: Session = Depends(get_db)):
+def create_subscriber(subscriber: SubscriberCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_subscriber = models.Subscriber(**subscriber.model_dump())
     db.add(db_subscriber)
     db.commit()
     db.refresh(db_subscriber)
+    auth.log_audit(db, current_user.id, "CREATE", "subscribers", db_subscriber.id, f"Created subscriber {subscriber.name}")
+    db.commit()
     return {
         "id": db_subscriber.id,
         "station_id": db_subscriber.station_id,
@@ -155,7 +254,7 @@ def create_subscriber(subscriber: SubscriberCreate, db: Session = Depends(get_db
     }
 
 @app.put("/api/subscribers/{subscriber_id}")
-def update_subscriber(subscriber_id: int, subscriber: SubscriberCreate, db: Session = Depends(get_db)):
+def update_subscriber(subscriber_id: int, subscriber: SubscriberCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_sub = db.query(models.Subscriber).filter(models.Subscriber.id == subscriber_id).first()
     if not db_sub:
         raise HTTPException(status_code=404, detail="المشترك غير موجود")
@@ -166,15 +265,20 @@ def update_subscriber(subscriber_id: int, subscriber: SubscriberCreate, db: Sess
     db_sub.initial_debt = subscriber.initial_debt
     db.commit()
     db.refresh(db_sub)
+    auth.log_audit(db, current_user.id, "UPDATE", "subscribers", subscriber_id, f"Updated subscriber {subscriber.name}")
+    db.commit()
     return {"status": "success", "message": "تم تحديث بيانات المشترك بنجاح"}
 
 @app.delete("/api/subscribers/{subscriber_id}")
-def delete_subscriber(subscriber_id: int, db: Session = Depends(get_db)):
+def delete_subscriber(subscriber_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_sub = db.query(models.Subscriber).filter(models.Subscriber.id == subscriber_id).first()
     if not db_sub:
         raise HTTPException(status_code=404, detail="المشترك غير موجود")
+    sub_name = db_sub.name
     try:
         db.delete(db_sub)
+        db.commit()
+        auth.log_audit(db, current_user.id, "DELETE", "subscribers", subscriber_id, f"Deleted subscriber {sub_name}")
         db.commit()
         return {"status": "success", "message": "تم حذف المشترك بنجاح"}
     except Exception:
@@ -193,23 +297,25 @@ class MonthlyPricingResponse(MonthlyPricingCreate):
         from_attributes = True
 
 @app.get("/api/pricing", response_model=List[MonthlyPricingResponse])
-def read_all_pricing(db: Session = Depends(get_db)):
+def read_all_pricing(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     return db.query(models.MonthlyPricing).order_by(models.MonthlyPricing.year.desc(), models.MonthlyPricing.month.desc()).all()
 
 @app.post("/api/pricing", status_code=201)
-def create_monthly_pricing(pricing: MonthlyPricingCreate, db: Session = Depends(get_db)):
+def create_monthly_pricing(pricing: MonthlyPricingCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_pricing = models.MonthlyPricing(**pricing.model_dump())
     try:
         db.add(db_pricing)
         db.commit()
         db.refresh(db_pricing)
+        auth.log_audit(db, current_user.id, "CREATE", "monthly_pricing", db_pricing.id, f"Created pricing for {pricing.month}/{pricing.year} at {pricing.price_per_ampere}")
+        db.commit()
         return {"status": "success", "message": "تمت إضافة التسعيرة بنجاح", "data": db_pricing}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail="قد تكون التسعيرة لهذا الشهر موجودة مسبقاً")
 
 @app.put("/api/pricing/{pricing_id}")
-def update_pricing(pricing_id: int, pricing: MonthlyPricingCreate, db: Session = Depends(get_db)):
+def update_pricing(pricing_id: int, pricing: MonthlyPricingCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_pricing = db.query(models.MonthlyPricing).filter(models.MonthlyPricing.id == pricing_id).first()
     if not db_pricing:
         raise HTTPException(status_code=404, detail="التسعيرة غير موجودة")
@@ -219,18 +325,23 @@ def update_pricing(pricing_id: int, pricing: MonthlyPricingCreate, db: Session =
     try:
         db.commit()
         db.refresh(db_pricing)
+        auth.log_audit(db, current_user.id, "UPDATE", "monthly_pricing", pricing_id, f"Updated pricing to {pricing.price_per_ampere}")
+        db.commit()
         return {"status": "success", "message": "تم تحديث التسعيرة بنجاح", "data": db_pricing}
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail="حدث خطأ أثناء تحديث التسعيرة")
 
 @app.delete("/api/pricing/{pricing_id}")
-def delete_pricing(pricing_id: int, db: Session = Depends(get_db)):
+def delete_pricing(pricing_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_pricing = db.query(models.MonthlyPricing).filter(models.MonthlyPricing.id == pricing_id).first()
     if not db_pricing:
         raise HTTPException(status_code=404, detail="التسعيرة غير موجودة")
+    pricing_info = f"{db_pricing.month}/{db_pricing.year}"
     try:
         db.delete(db_pricing)
+        db.commit()
+        auth.log_audit(db, current_user.id, "DELETE", "monthly_pricing", pricing_id, f"Deleted pricing for {pricing_info}")
         db.commit()
         return {"status": "success", "message": "تم حذف التسعيرة بنجاح"}
     except Exception as e:
@@ -238,7 +349,7 @@ def delete_pricing(pricing_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="لا يمكن حذف التسعيرة لأنها مرتبطة بفواتير")
 
 @app.post("/api/invoices/generate/{pricing_id}")
-def generate_invoices_for_month(pricing_id: int, db: Session = Depends(get_db)):
+def generate_invoices_for_month(pricing_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     pricing = db.query(models.MonthlyPricing).filter(models.MonthlyPricing.id == pricing_id).first()
     if not pricing:
         raise HTTPException(status_code=404, detail="التسعيرة غير موجودة")
@@ -271,6 +382,8 @@ def generate_invoices_for_month(pricing_id: int, db: Session = Depends(get_db)):
             
     try:
         db.commit()
+        auth.log_audit(db, current_user.id, "CREATE", "invoices", None, f"Generated {count} invoices for pricing ID {pricing_id}")
+        db.commit()
         return {"status": "success", "message": f"تم توليد {count} فاتورة بنجاح"}
     except Exception as e:
         db.rollback()
@@ -288,20 +401,22 @@ class ExpenseResponse(ExpenseCreate):
         orm_mode = True
 
 @app.get("/api/expenses", response_model=List[ExpenseResponse])
-def read_expenses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def read_expenses(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     expenses = db.query(models.Expense).order_by(models.Expense.expense_date.desc()).offset(skip).limit(limit).all()
     return expenses
 
 @app.post("/api/expenses", response_model=ExpenseResponse)
-def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db)):
+def create_expense(expense: ExpenseCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     db_expense = models.Expense(**expense.model_dump())
     db.add(db_expense)
     db.commit()
     db.refresh(db_expense)
+    auth.log_audit(db, current_user.id, "CREATE", "expenses", db_expense.id, f"Created expense: {expense.description} ({expense.amount})")
+    db.commit()
     return db_expense
 
 @app.get("/api/invoices")
-def list_invoices(db: Session = Depends(get_db)):
+def list_invoices(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     invoices = db.query(models.Invoice).join(models.Subscriber).join(models.MonthlyPricing).order_by(models.Invoice.id.desc()).all()
     result = []
     for inv in invoices:
@@ -328,17 +443,19 @@ class InvoiceUpdate(BaseModel):
     paid_amount: float
 
 @app.put("/api/invoices/{invoice_id}")
-def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db)):
+def update_invoice(invoice_id: int, data: InvoiceUpdate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     inv = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="الفاتورة غير موجودة")
     inv.total_required = data.total_required
     inv.paid_amount = data.paid_amount
     db.commit()
+    auth.log_audit(db, current_user.id, "UPDATE", "invoices", invoice_id, f"Updated invoice {invoice_id} totals")
+    db.commit()
     return {"status": "success", "message": "تم تحديث الفاتورة بنجاح"}
 
 @app.delete("/api/invoices/{invoice_id}")
-def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
+def delete_invoice(invoice_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     inv = db.query(models.Invoice).filter(models.Invoice.id == invoice_id).first()
     if not inv:
         raise HTTPException(status_code=404, detail="الفاتورة غير موجودة")
@@ -346,10 +463,12 @@ def delete_invoice(invoice_id: int, db: Session = Depends(get_db)):
     db.query(models.Payment).filter(models.Payment.invoice_id == invoice_id).delete()
     db.delete(inv)
     db.commit()
+    auth.log_audit(db, current_user.id, "DELETE", "invoices", invoice_id, f"Deleted invoice {invoice_id} and its payments")
+    db.commit()
     return {"status": "success", "message": "تم حذف الفاتورة بنجاح"}
 
 @app.get("/api/reports/invoices")
-def get_invoices_report(db: Session = Depends(get_db)):
+def get_invoices_report(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     invoices = db.query(models.Invoice).join(models.Subscriber).join(models.MonthlyPricing).all()
     report_data = []
     for inv in invoices:
@@ -367,7 +486,7 @@ def get_invoices_report(db: Session = Depends(get_db)):
     return report_data
 
 @app.get("/api/metrics")
-def get_metrics(db: Session = Depends(get_db)):
+def get_metrics(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     from sqlalchemy import func
     
     active_subscribers = db.query(func.count(models.Subscriber.id)).scalar() or 0
@@ -387,7 +506,7 @@ def get_metrics(db: Session = Depends(get_db)):
     }
 
 @app.post("/api/payments")
-def create_payment(payment: PaymentCreate, db: Session = Depends(get_db)):
+def create_payment(payment: PaymentCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     # Find the latest unpaid invoice for this subscriber
     invoice = db.query(models.Invoice).filter(
         models.Invoice.subscriber_id == payment.subscriber_id
@@ -416,6 +535,9 @@ def create_payment(payment: PaymentCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_payment)
     
+    auth.log_audit(db, current_user.id, "CREATE", "payments", db_payment.id, f"Payment of {payment.amount} for invoice {invoice.id} (Sub: {payment.subscriber_id})")
+    db.commit()
+    
     # Get subscriber info for receipt
     subscriber = db.query(models.Subscriber).filter(models.Subscriber.id == payment.subscriber_id).first()
     
@@ -436,7 +558,7 @@ def create_payment(payment: PaymentCreate, db: Session = Depends(get_db)):
     }
 
 @app.get("/api/subscribers/{subscriber_id}/history")
-def get_subscriber_history(subscriber_id: int, db: Session = Depends(get_db)):
+def get_subscriber_history(subscriber_id: int, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_active_user)):
     subscriber = db.query(models.Subscriber).filter(models.Subscriber.id == subscriber_id).first()
     if not subscriber:
         raise HTTPException(status_code=404, detail="المشترك غير موجود")
