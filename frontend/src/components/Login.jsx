@@ -20,7 +20,7 @@ const Login = ({ onLoginSuccess }) => {
             formData.append('username', username);
             formData.append('password', password);
 
-            const response = await axios.post(`${API}/api/token`, formData, {
+            const response = await axios.post(`${API}/api/token`, formData.toString(), {
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded'
                 }
