@@ -21,22 +21,23 @@ load_dotenv()
 # Create default admin user if it doesn't exist
 db = SessionLocal()
 try:
-    default_admin_user = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
-    default_admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+    default_admin_user = os.getenv("DEFAULT_ADMIN_USERNAME")
+    default_admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD")
     
-    existing_admin = db.query(models.User).filter(models.User.username == default_admin_user).first()
-    if not existing_admin:
-        admin_user = models.User(
-            username=default_admin_user,
-            hashed_password=auth.get_password_hash(default_admin_pass),
-            role="super_admin"
-        )
-        db.add(admin_user)
-        db.commit()
-    elif existing_admin.role == "admin":
-        # Upgrade existing default admin to super_admin
-        existing_admin.role = "super_admin"
-        db.commit()
+    if default_admin_user and default_admin_pass:
+        existing_admin = db.query(models.User).filter(models.User.username == default_admin_user).first()
+        if not existing_admin:
+            admin_user = models.User(
+                username=default_admin_user,
+                hashed_password=auth.get_password_hash(default_admin_pass),
+                role="super_admin"
+            )
+            db.add(admin_user)
+            db.commit()
+        elif existing_admin.role == "admin":
+            # Upgrade existing default admin to super_admin
+            existing_admin.role = "super_admin"
+            db.commit()
 finally:
     db.close()
 
