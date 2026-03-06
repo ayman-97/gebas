@@ -18,13 +18,18 @@ models.Base.metadata.create_all(bind=engine)
 # Create default admin user if it doesn't exist
 db = SessionLocal()
 try:
-    if db.query(models.User).filter(models.User.username == "admin").count() == 0:
+    existing_admin = db.query(models.User).filter(models.User.username == "admin").first()
+    if not existing_admin:
         admin_user = models.User(
             username="admin",
             hashed_password=auth.get_password_hash("admin123"),
             role="super_admin"
         )
         db.add(admin_user)
+        db.commit()
+    elif existing_admin.role == "admin":
+        # Upgrade existing default admin to super_admin
+        existing_admin.role = "super_admin"
         db.commit()
 finally:
     db.close()
@@ -154,6 +159,9 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: model
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+        
+    if user.username == "admin":
+        raise HTTPException(status_code=403, detail="لا يمكن حذف الحساب الأساسي للنظام مطلقاً")
         
     # Hierarchy checks
     if current_user.role == "admin" and user.role in ["admin", "super_admin"]:

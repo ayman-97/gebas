@@ -268,6 +268,8 @@ const UsersManagement = () => {
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                                         {currentUser.username === user.username ? (
                                                             <span className="text-gray-400 text-sm italic">حسابك الحالي</span>
+                                                        ) : user.username === 'admin' ? (
+                                                            <span className="text-gray-400 text-sm font-bold" title="هذا هو الحساب الأساسي للنظام، لا يمكن حذفه أبداً">أساسي (محمي)</span>
                                                         ) : (currentUser.role === 'admin' && (user.role === 'admin' || user.role === 'super_admin')) ? (
                                                             <span className="text-gray-400 text-sm italic" title="لا تملك الصلاحية لحذفه">غير مُصرَّح</span>
                                                         ) : (
