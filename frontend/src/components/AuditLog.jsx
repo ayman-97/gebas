@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { History, Search, Loader, Filter, Clock, User, Activity } from 'lucide-react';
+import { History, Search, Loader, Filter, Clock, User, Activity, Trash2, ShieldAlert } from 'lucide-react';
 import axios from 'axios';
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -32,6 +32,26 @@ const AuditLog = () => {
 
         fetchLogs();
     }, []);
+
+    const handleClearLogs = async () => {
+        if (!window.confirm('هل أنت متأكد من مسح جميع سجلات النظام نهائياً؟ هذا الإجراء لا يمكن التراجع عنه.')) return;
+
+        setIsLoading(true);
+        try {
+            const token = localStorage.getItem('gebas_token');
+            const response = await axios.delete(`${API}/api/audit-logs`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            alert(response.data.message || 'تم مسح السجل بنجاح');
+            setLogs([]);
+        } catch (err) {
+            setError(err.response?.data?.detail || 'حدث خطأ أثناء مسح السجلات');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const currentUser = JSON.parse(localStorage.getItem('gebas_user') || '{}');
 
     const filteredLogs = logs.filter(log =>
         (log.username?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
@@ -86,6 +106,15 @@ const AuditLog = () => {
                             />
                             <Search className="absolute right-3 top-2.5 text-gray-400" size={18} />
                         </div>
+                        {currentUser?.role === 'super_admin' && (
+                            <button
+                                onClick={handleClearLogs}
+                                className="flex-shrink-0 flex items-center gap-2 bg-rose-50 text-rose-600 px-4 py-2 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors mr-2"
+                            >
+                                <Trash2 size={18} />
+                                <span className="font-bold hidden sm:inline">مسح السجل</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 

@@ -59,8 +59,13 @@ async def get_current_active_user(current_user: models.User = Depends(get_curren
     return current_user
 
 async def get_current_admin_user(current_user: models.User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    if current_user.role not in ["admin", "super_admin"]:
         raise HTTPException(status_code=403, detail="هذه العملية تتطلب صلاحيات مدير")
+    return current_user
+
+async def get_current_super_admin_user(current_user: models.User = Depends(get_current_user)):
+    if current_user.role != "super_admin":
+        raise HTTPException(status_code=403, detail="هذه العملية تتطلب صلاحيات الخارق (Super Admin)")
     return current_user
 
 def log_audit(db: Session, user_id: int, action: str, table_name: str, record_id: int = None, details: str = None):

@@ -171,8 +171,18 @@ const UsersManagement = () => {
                                             className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${role === 'admin' ? 'bg-rose-50 border-rose-500 text-rose-700 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
                                         >
                                             <Shield size={24} />
-                                            <span className="font-bold text-sm">مدير (صلاحيات كاملة)</span>
+                                            <span className="font-bold text-sm">مدير (مشرف مستقل)</span>
                                         </button>
+                                        {currentUser?.role === 'super_admin' && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setRole('super_admin')}
+                                                className={`p-3 rounded-xl border flex flex-col items-center gap-2 transition-all ${role === 'super_admin' ? 'bg-purple-50 border-purple-500 text-purple-700 shadow-sm' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                            >
+                                                <ShieldAlert size={24} />
+                                                <span className="font-bold text-sm">مدير خارق (عام)</span>
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 
@@ -232,7 +242,12 @@ const UsersManagement = () => {
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
-                                                        {user.role === 'admin' ? (
+                                                        {user.role === 'super_admin' ? (
+                                                            <span className="inline-flex flex-col items-center text-purple-600 bg-purple-50 px-3 py-1 rounded-lg text-sm font-bold border border-purple-100">
+                                                                <ShieldAlert size={14} className="mb-0.5" />
+                                                                مدير خارق
+                                                            </span>
+                                                        ) : user.role === 'admin' ? (
                                                             <span className="inline-flex flex-col items-center text-rose-600 bg-rose-50 px-3 py-1 rounded-lg text-sm font-bold border border-rose-100">
                                                                 <Shield size={14} className="mb-0.5" />
                                                                 مدير نظام
@@ -253,6 +268,8 @@ const UsersManagement = () => {
                                                     <td className="px-6 py-4 whitespace-nowrap text-center">
                                                         {currentUser.username === user.username ? (
                                                             <span className="text-gray-400 text-sm italic">حسابك الحالي</span>
+                                                        ) : (currentUser.role === 'admin' && (user.role === 'admin' || user.role === 'super_admin')) ? (
+                                                            <span className="text-gray-400 text-sm italic" title="لا تملك الصلاحية لحذفه">غير مُصرَّح</span>
                                                         ) : (
                                                             <button
                                                                 onClick={() => handleDeleteUser(user.id, user.username)}

@@ -151,7 +151,7 @@ function App() {
                     </button>
 
                     {/* Admin Only Links */}
-                    {currentUser?.role === 'admin' && (
+                    {(currentUser?.role === 'admin' || currentUser?.role === 'super_admin') && (
                         <>
                             <div className="my-4 border-t border-gray-100"></div>
 
@@ -205,9 +205,9 @@ function App() {
                     </h2>
 
                     <div className="mr-auto flex items-center gap-2 bg-gray-50 px-3 py-1.5 rounded-full border border-gray-200 shrink-0">
-                        <div className={`w-2 h-2 rounded-full ${currentUser?.role === 'admin' ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
+                        <div className={`w-2 h-2 rounded-full ${currentUser?.role === 'super_admin' ? 'bg-purple-500' : currentUser?.role === 'admin' ? 'bg-rose-500' : 'bg-emerald-500'}`}></div>
                         <span className="text-sm font-bold text-gray-700 hidden sm:inline">{currentUser?.username}</span>
-                        <span className="text-xs text-gray-400">({currentUser?.role === 'admin' ? 'مدير' : 'محاسب'})</span>
+                        <span className="text-xs text-gray-400">({currentUser?.role === 'super_admin' ? 'مدير خارق' : currentUser?.role === 'admin' ? 'مدير' : 'محاسب'})</span>
                     </div>
                 </div>
                 <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -216,8 +216,8 @@ function App() {
                             currentView === 'billing' ? <InvoicesBilling /> :
                                 currentView === 'expenses' ? <Expenses /> :
                                     currentView === 'reports' ? <Reports /> :
-                                        currentView === 'users' && currentUser?.role === 'admin' ? <UsersManagement /> :
-                                            currentView === 'audit' && currentUser?.role === 'admin' ? <AuditLog /> : <Dashboard />}
+                                        currentView === 'users' && (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') ? <UsersManagement /> :
+                                            currentView === 'audit' && (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') ? <AuditLog /> : <Dashboard />}
                 </div>
             </main>
         </div>

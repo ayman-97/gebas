@@ -22,7 +22,7 @@ try:
         admin_user = models.User(
             username="admin",
             hashed_password=auth.get_password_hash("admin123"),
-            role="admin"
+            role="super_admin"
         )
         db.add(admin_user)
         db.commit()
@@ -125,6 +125,13 @@ def read_users(db: Session = Depends(get_db), current_user: models.User = Depend
 
 @app.post("/api/users", response_model=UserResponse)
 def create_user(user: UserCreate, db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
+    # Role hierarchy checks
+    if current_user.role == "admin" and user.role != "accountant":
+        raise HTTPException(status_code=403, detail="المدير يمكنه فقط إنشاء حسابات محاسبين")
+    
+    if user.role not in ["accountant", "admin", "super_admin"]:
+        raise HTTPException(status_code=400, detail="نوع الصلاحية غير صالح")
+
     db_user = db.query(models.User).filter(models.User.username == user.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="اسم المستخدم موجود مسبقاً")
@@ -147,12 +154,24 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: model
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="المستخدم غير موجود")
+        
+    # Hierarchy checks
+    if current_user.role == "admin" and user.role in ["admin", "super_admin"]:
+        raise HTTPException(status_code=403, detail="لا تمتلك الصلاحية لحذف حساب مدير آخر")
+        
     username = user.username
     db.delete(user)
     db.commit()
     auth.log_audit(db, current_user.id, "DELETE", "users", user_id, f"Deleted user {username}")
     db.commit()
     return {"status": "success"}
+
+@app.delete("/api/audit-logs")
+def clear_audit_logs(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_super_admin_user)):
+    db.query(models.AuditLog).delete()
+    auth.log_audit(db, current_user.id, "DELETE", "audit_logs", None, f"Super Admin {current_user.username} cleared all audit logs")
+    db.commit()
+    return {"message": "تم مسح سجل المراقبة بنجاح"}
 
 @app.get("/api/audit-logs")
 def get_audit_logs(db: Session = Depends(get_db), current_user: models.User = Depends(auth.get_current_admin_user)):
