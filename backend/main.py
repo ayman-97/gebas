@@ -9,20 +9,26 @@ from typing import List, Optional
 from datetime import datetime
 import auth
 
-# Import models
 import models
 
 from database import engine, SessionLocal, get_db
 models.Base.metadata.create_all(bind=engine)
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 # Create default admin user if it doesn't exist
 db = SessionLocal()
 try:
-    existing_admin = db.query(models.User).filter(models.User.username == "admin").first()
+    default_admin_user = os.getenv("DEFAULT_ADMIN_USERNAME", "admin")
+    default_admin_pass = os.getenv("DEFAULT_ADMIN_PASSWORD", "admin123")
+    
+    existing_admin = db.query(models.User).filter(models.User.username == default_admin_user).first()
     if not existing_admin:
         admin_user = models.User(
-            username="admin",
-            hashed_password=auth.get_password_hash("admin123"),
+            username=default_admin_user,
+            hashed_password=auth.get_password_hash(default_admin_pass),
             role="super_admin"
         )
         db.add(admin_user)
