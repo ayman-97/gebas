@@ -159,7 +159,7 @@ const Reports = () => {
                 </div>
 
                 {/* Data Table */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden print:shadow-none print:border-none">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto print:shadow-none print:border-none print:overflow-visible">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50 print:bg-white">
                             <tr>

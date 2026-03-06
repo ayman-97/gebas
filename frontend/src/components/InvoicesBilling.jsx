@@ -146,7 +146,7 @@ const InvoicesBilling = () => {
 
                 {/* ═══ PRICING TAB ═══ */}
                 {activeTab === 'pricing' && (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
@@ -243,7 +243,7 @@ const InvoicesBilling = () => {
                         </div>
 
                         {/* Invoices Table */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50">
                                     <tr>
@@ -323,7 +323,7 @@ const InvoicesBilling = () => {
                 {/* Add Pricing Modal */}
                 {isAddModalOpen && (
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl" dir="rtl">
+                        <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl" dir="rtl">
                             <div className="flex items-center space-x-3 space-x-reverse mb-6 border-b pb-4">
                                 <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Settings size={24} /></div>
                                 <h2 className="text-2xl font-bold text-gray-800">إضافة تسعيرة شهر جديد</h2>

@@ -93,7 +93,7 @@ const UsersManagement = () => {
             <div className="max-w-7xl mx-auto space-y-6">
 
                 {/* Header */}
-                <div className="flex items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="flex flex-col md:flex-row items-start md:items-center justify-between bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
                     <div className="flex items-center space-x-4 space-x-reverse">
                         <div className="p-4 bg-indigo-50 text-indigo-600 rounded-xl">
                             <ShieldAlert size={28} />
@@ -190,7 +190,7 @@ const UsersManagement = () => {
                     {/* Users List */}
                     <div className="lg:col-span-2">
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                            <div className="bg-gray-50/80 px-6 py-4 border-b border-gray-100 font-bold text-gray-700 flex items-center justify-between">
+                            <div className="bg-gray-50/80 px-6 py-4 border-b border-gray-100 font-bold text-gray-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                     <Key size={20} className="text-emerald-500" />
                                     الحسابات المسجلة

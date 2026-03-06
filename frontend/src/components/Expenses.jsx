@@ -60,8 +60,8 @@ const Expenses = () => {
         <div className="p-8 bg-gray-50 min-h-screen font-sans text-right" dir="rtl">
             <div className="max-w-7xl mx-auto space-y-6">
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                    <div className="md:col-span-2 flex justify-between items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+                    <div className="lg:col-span-2 flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-gray-100 gap-4">
                         <div className="flex items-center space-x-4 space-x-reverse">
                             <div className="p-4 bg-orange-50 text-orange-600 rounded-xl"><CreditCard size={28} /></div>
                             <div>
@@ -106,7 +106,7 @@ const Expenses = () => {
 
                 {isModalOpen && (
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl" dir="rtl">
+                        <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md shadow-2xl" dir="rtl">
                             <div className="flex items-center space-x-3 space-x-reverse mb-6 border-b pb-4">
                                 <div className="p-2 bg-orange-100 text-orange-600 rounded-lg"><CreditCard size={24} /></div>
                                 <h2 className="text-2xl font-bold text-gray-800">تسجيل مصروف جديد</h2>

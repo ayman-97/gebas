@@ -161,9 +161,9 @@ const Subscribers = () => {
                         <div className="p-3 bg-blue-50 text-blue-600 rounded-xl"><Users size={24} /></div>
                         <div><h1 className="text-2xl font-bold text-gray-800">إدارة المشتركين</h1><p className="text-sm text-gray-500">إجمالي المشتركين: {subscribers.length}</p></div>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={() => setIsStationModalOpen(true)} className="flex items-center px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition font-bold"><MapPin size={18} className="ml-2" />إضافة محطة</button>
-                        <button onClick={openAddSub} className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-bold"><UserPlus size={18} className="ml-2" />إضافة مشترك</button>
+                    <div className="flex flex-wrap gap-2 w-full md:w-auto mt-4 md:mt-0">
+                        <button onClick={() => setIsStationModalOpen(true)} className="flex-1 md:flex-none justify-center items-center px-4 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl hover:bg-emerald-100 transition font-bold"><MapPin size={18} className="ml-2 inline" /> إضافة محطة</button>
+                        <button onClick={openAddSub} className="flex-1 md:flex-none justify-center items-center px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition font-bold"><UserPlus size={18} className="ml-2 inline" /> إضافة مشترك</button>
                     </div>
                 </div>
 
@@ -185,7 +185,7 @@ const Subscribers = () => {
                 </div>
 
                 {/* Table */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                             <tr>
@@ -230,7 +230,7 @@ const Subscribers = () => {
                 {/* Add/Edit Subscriber Modal */}
                 {isSubModalOpen && (
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl" dir="rtl">
+                        <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
                             <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-4">{editingSub ? 'تعديل بيانات المشترك' : 'إضافة مشترك جديد'}</h2>
                             <form onSubmit={handleSubSubmit} className="space-y-4">
                                 <div>
@@ -244,7 +244,7 @@ const Subscribers = () => {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">اسم المشترك <span className="text-rose-500">*</span></label>
                                     <input type="text" required value={subForm.name} onChange={(e) => setSubForm({ ...subForm, name: e.target.value })} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500" />
                                 </div>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">رقم الوحدة</label>
                                         <input type="text" value={subForm.unit_number} onChange={(e) => setSubForm({ ...subForm, unit_number: e.target.value })} className="w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500" />
@@ -357,7 +357,7 @@ const Subscribers = () => {
                 {/* History Modal */}
                 {isHistoryOpen && (
                     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-                        <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl max-h-[85vh] flex flex-col" dir="rtl">
+                        <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl max-h-[90vh] flex flex-col" dir="rtl">
                             <div className="p-6 border-b border-gray-100 flex items-center justify-between">
                                 <div className="flex items-center space-x-3 space-x-reverse">
                                     <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><History size={24} /></div>
@@ -377,7 +377,7 @@ const Subscribers = () => {
                                     <div className="space-y-4">
                                         {historyData.history.map((inv) => (
                                             <div key={inv.invoice_id} className="border border-gray-200 rounded-2xl overflow-hidden">
-                                                <div className="bg-gray-50 px-5 py-3 flex justify-between items-center">
+                                                <div className="bg-gray-50 px-5 py-3 flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
                                                     <div className="flex items-center space-x-3 space-x-reverse">
                                                         <span className="text-sm font-bold text-gray-700">📅 فاتورة شهر {inv.month_year}</span>
                                                     </div>
